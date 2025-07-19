@@ -1,0 +1,82 @@
+version: '3.8'
+
+services:
+  # PostgreSQL for Airflow metadata and your application DB
+  postgres:
+    image: postgres:13
+    container_name: airflow-postgres
+    environment:
+      POSTGRES_USER: airflow
+      POSTGRES_PASSWORD: airflow
+      POSTGRES_DB: lead_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  # Airflow Webserver
+  airflow-webserver:
+    build: .
+    container_name: airflow-webserver
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/lead_db
+      - _AIRFLOW_WWW_USER_USERNAME=admin
+      - _AIRFLOW_WWW_USER_PASSWORD=admin
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./drift_detection:/opt/airflow/drift_detection
+      - ./model_training:/opt/airflow/model_training
+      - ./final_model:/opt/airflow/final_model
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data         # ✅ Added data volume
+    ports:
+      - "8080:8080"
+    command: >
+      bash -c "
+        airflow db upgrade &&
+        airflow users create --username admin --password admin --firstname admin --lastname admin --role Admin --email admin@example.com &&
+        airflow webserver
+      "
+
+  # Airflow Scheduler
+  airflow-scheduler:
+    build: .
+    container_name: airflow-scheduler
+    depends_on:
+      - postgres
+    environment:
+      - AIRFLOW__CORE__EXECUTOR=LocalExecutor
+      - AIRFLOW__CORE__SQL_ALCHEMY_CONN=postgresql+psycopg2://airflow:airflow@postgres:5432/lead_db
+    volumes:
+      - ./dags:/opt/airflow/dags
+      - ./drift_detection:/opt/airflow/drift_detection
+      - ./model_training:/opt/airflow/model_training
+      - ./final_model:/opt/airflow/final_model
+      - ./logs:/opt/airflow/logs
+      - ./plugins:/opt/airflow/plugins
+      - ./data:/opt/airflow/data         # ✅ Added data volume
+    command: >
+      bash -c "
+        airflow db upgrade &&
+        airflow scheduler
+      "
+
+  # MLflow Tracking Server
+  mlflow:
+    image: ghcr.io/mlflow/mlflow:v2.11.3
+    container_name: mlflow
+    ports:
+      - "5000:5000"
+    environment:
+      - MLFLOW_TRACKING_URI=http://mlflow:5000
+    volumes:
+      - ./mlruns:/mlflow/mlruns     # ✅ This is correct!
+    command: mlflow server --backend-store-uri /mlflow/mlruns --host 0.0.0.0 --port 5000
+
+volumes:
+  postgres_data:
+
