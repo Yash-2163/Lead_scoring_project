@@ -33,7 +33,6 @@ services:
       - ./logs:/opt/airflow/logs
       - ./plugins:/opt/airflow/plugins
       - ./data:/opt/airflow/data
-      - pgdata:/var/lib/postgresql/data
     ports:
       - "8080:8080"
     command: >
